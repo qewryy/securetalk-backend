@@ -2,10 +2,13 @@ package com.example.securetalk.controller;
 
 import com.example.securetalk.model.User;
 import com.example.securetalk.service.UserService;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
@@ -13,28 +16,39 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @GetMapping
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
+    @PostMapping("/register")
+    public ResponseEntity<?> registerUser(@RequestBody User user) {
+        if (userService.checkIfUserExists(user.getUsername(), user.getEmail())) {
+            return ResponseEntity.badRequest().body("Username or Email already exists");
+        }
+        userService.registerUser(user);
+        return ResponseEntity.ok("User registered successfully");
     }
 
-    @GetMapping("/{id}")
-    public User getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
+    @PostMapping("/login")
+    public ResponseEntity<?> loginUser(@RequestBody User user, HttpSession session) {
+        if (userService.validateUser(user.getUsername(), user.getPassword())) {
+            session.setAttribute("username", user.getUsername());
+            return ResponseEntity.ok("Login successful");
+        } else {
+            return ResponseEntity.status(401).body("Invalid credentials");
+        }
     }
 
-    @PostMapping
-    public User createUser(@RequestBody User user) {
-        return userService.createUser(user);
+    @GetMapping("/session")
+    public ResponseEntity<?> getSession(HttpSession session) {
+        String username = (String) session.getAttribute("username");
+        if (username != null) {
+            return ResponseEntity.ok().body(Map.of("username", username));
+        } else {
+            return ResponseEntity.status(401).body("No user logged in");
+        }
     }
 
-    @PutMapping("/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
-        return userService.updateUser(id, userDetails);
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser(HttpSession session) {
+        session.invalidate();
+        return ResponseEntity.ok("Logout successful");
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-    }
 }
