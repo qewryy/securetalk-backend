@@ -1,35 +1,44 @@
 package com.example.securetalk.controller;
 
 import com.example.securetalk.model.User;
+import com.example.securetalk.service.SessionService;
 import com.example.securetalk.service.UserService;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
+import jakarta.servlet.http.HttpSession;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class UserController {
     @Autowired
     private UserService userService;
 
-    @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody User user) {
-        if (userService.checkIfUserExists(user.getUsername(), user.getEmail())) {
-            return ResponseEntity.badRequest().body("Username or Email already exists");
-        }
-        userService.registerUser(user);
-        return ResponseEntity.ok("User registered successfully");
-    }
+    @Autowired
+    private SessionService sessionService;
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody User user, HttpSession session) {
         if (userService.validateUser(user.getUsername(), user.getPassword())) {
-            session.setAttribute("username", user.getUsername());
-            return ResponseEntity.ok("Login successful");
+            Optional<User> validUserOpt = userService.findByUsername(user.getUsername());
+            if (validUserOpt.isPresent()) {
+                User validUser = validUserOpt.get();
+                session.setAttribute("username", validUser.getUsername());
+                session.setAttribute("userId", validUser.getId());
+
+                LocalDateTime expiresAt = LocalDateTime.now().plus(1, ChronoUnit.DAYS); // 세션 만료 시간을 1일로 설정
+                sessionService.saveSession(validUser.getId(), session.getId(), expiresAt);
+
+                return ResponseEntity.ok("Login successful");
+            } else {
+                return ResponseEntity.status(401).body("User not found");
+            }
         } else {
             return ResponseEntity.status(401).body("Invalid credentials");
         }
@@ -50,5 +59,4 @@ public class UserController {
         session.invalidate();
         return ResponseEntity.ok("Logout successful");
     }
-
 }
